@@ -1,7 +1,7 @@
 import os
 import struct
 
-from rbtree import Tree
+from rbtree import Tree, NodeStream
 
 
 class StorageInitError(Exception):
@@ -39,7 +39,7 @@ class Storage:
             storage.write(struct.pack(">i", -1))
 
     def __len__(self):
-        pass
+        return NodeStream.nodes_count()
 
     def __enter__(self):
         self._tree = Tree(self._path)
@@ -54,13 +54,13 @@ class Storage:
     def __getitem__(self, key):
         result = self._tree.find(key)
         if result:
-            return result.key
+            return result.value
 
     def __delitem__(self, key):
         pass
 
     def __contains__(self, item):
-        pass
+        return self._tree.find(item)
 
     def __iter__(self):
         pass

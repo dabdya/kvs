@@ -4,7 +4,6 @@ import os
 
 STORAGE_INIT_ERROR = -3
 STORAGE_NOT_FOUND_ERROR = -4
-
 STORAGE_PATH_ERROR = -2
 MODULE_IMPORT_ERROR = -1
 
@@ -41,6 +40,7 @@ def main():
 
         if args.command == "add":
             if len(args.items) % 2 != 0:
+                # Выкидывать ошибку
                 return
 
             pair = list()
@@ -74,6 +74,10 @@ def main():
 
         elif args.command == "exist":
             for key in args.keys:
+                try:
+                    key = int(key)
+                except ValueError:
+                    pass
                 exist = key in storage
                 print(exist)
 

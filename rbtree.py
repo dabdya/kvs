@@ -35,8 +35,8 @@ class NodeStream:
             return None
         with open(cls.storage, "rb") as storage:
             storage.seek(
-                index * cls.size_row + NodeStream.len_size
-                + NodeStream.root_pointer_size, 0)
+                index * cls.size_row + NodeStream.len_size +
+                NodeStream.root_pointer_size, 0)
             data = storage.read(NodeStream.size_row)
             if len(data) != NodeStream.size_row:
                 return None
@@ -63,17 +63,18 @@ class NodeStream:
             storage.write(struct.pack(">i", last + 1))
 
     @classmethod
-    def get_root_index(cls):
+    def get_root(cls):
         with open(cls.storage, "rb") as storage:
             storage.seek(NodeStream.len_size)
             data = storage.read(4)
-            return struct.unpack(">i", data)[0]
+            index = struct.unpack(">i", data)[0]
+            return cls.get_node(index)
 
     @classmethod
-    def set_root_index(cls, index):
+    def set_root(cls, node):
         with open(cls.storage, "rb+") as storage:
             storage.seek(NodeStream.len_size)
-            storage.write(struct.pack(">i", index))
+            storage.write(struct.pack(">i", node.index))
 
     @classmethod
     def set_node(cls, node):
@@ -83,8 +84,8 @@ class NodeStream:
             return None
         with open(cls.storage, "rb+") as storage:
             storage.seek(
-                node.index * cls.size_row + NodeStream.len_size
-                + NodeStream.root_pointer_size, 0)
+                node.index * cls.size_row + NodeStream.len_size +
+                NodeStream.root_pointer_size, 0)
             storage.writelines([
                 struct.pack(">i", node.index),
                 struct.pack(
@@ -103,10 +104,12 @@ class NodeStream:
 
     @classmethod
     def set_attribute(cls, offset, mask, index, value):
+        if index == -1:
+            return None
         with open(cls.storage, "rb+") as storage:
             storage.seek(
-                index * cls.size_row + NodeStream.len_size
-                + NodeStream.root_pointer_size + offset, 0)
+                index * cls.size_row + NodeStream.len_size +
+                NodeStream.root_pointer_size + offset, 0)
             storage.write(struct.pack(mask, value))
 
 
@@ -124,7 +127,7 @@ class Node:
     @property
     def parent(self):
         node = NodeStream.get_node(self._parent)
-        return node if node else ImagineNode()
+        return node if node else ImagineNode(self.index)
 
     @parent.setter
     def parent(self, node):
@@ -134,7 +137,7 @@ class Node:
     @property
     def left(self):
         node = NodeStream.get_node(self._left)
-        return node if node else ImagineNode()
+        return node if node else ImagineNode(self.index)
 
     @left.setter
     def left(self, node):
@@ -144,7 +147,7 @@ class Node:
     @property
     def right(self):
         node = NodeStream.get_node(self._right)
-        return node if node else ImagineNode()
+        return node if node else ImagineNode(self.index)
 
     @right.setter
     def right(self, node):
@@ -173,9 +176,10 @@ class Node:
 
 
 class ImagineNode(Node):
-    def __init__(self):
+    def __init__(self, parent):
         super().__init__(
-            -1, -1, -1, color=NodeColor.Black)
+            -1, -1, -1, parent=parent,
+            color=NodeColor.Black)
 
 
 class Tree:
@@ -205,7 +209,7 @@ class Tree:
         if not node_1.parent:
             self.root = node_2
             NodeStream.set_node(self.root)
-            NodeStream.set_root_index(self.root.index)
+            NodeStream.set_root(self.root)
             return
         if node_1 == node_1.parent.left:
             node_1.parent.left = node_2
@@ -231,7 +235,7 @@ class Tree:
         if not pivot.parent:
             self.root = pivot
             NodeStream.set_node(self.root)
-            NodeStream.set_root_index(self.root.index)
+            NodeStream.set_root(self.root)
 
     def rotate_right(self, node):
         pivot = node.left
@@ -252,27 +256,25 @@ class Tree:
         if not pivot.parent:
             self.root = pivot
             NodeStream.set_node(self.root)
-            NodeStream.set_root_index(self.root.index)
+            NodeStream.set_root(self.root)
 
     def insert(self, key, value):
-        root_index = NodeStream.get_root_index()
-        self.root = NodeStream.get_node(root_index)
+        self.root = NodeStream.get_root()
         if not self.root:
             self.root = Node(0, key, value, color=NodeColor.Black)
-            NodeStream.set_node(self.root)
             NodeStream.nodes_count_up(0)
-            NodeStream.set_root_index(0)
+            NodeStream.set_node(self.root)
+            NodeStream.set_root(self.root)
             return
 
         node = self.root
         while True:
             index = NodeStream.nodes_count()
-            if value < node.value:
+            if key < node.key:
                 if not node.left:
                     NodeStream.nodes_count_up(index)
-                    _node = Node(index, key, value)
+                    _node = Node(index, key, value, parent=node.index)
                     NodeStream.set_node(_node)
-                    _node.parent = node
                     node.left = _node
                     self._insert_case1(_node)
                     break
@@ -280,13 +282,13 @@ class Tree:
 
             else:
                 if not node.right:
-                    if value != node.value:
+                    if key != node.key:
                         NodeStream.nodes_count_up(index)
                     else:
-                        index = node.index
-                    _node = Node(index, key, value)
+                        NodeStream.set_attribute(21, ">i", node.index, value)
+                        return
+                    _node = Node(index, key, value, parent=node.index)
                     NodeStream.set_node(_node)
-                    _node.parent = node
                     node.right = _node
                     self._insert_case1(_node)
                     break
@@ -330,8 +332,10 @@ class Tree:
         self._insert_case5(node)
 
     def _insert_case5(self, node):
-        g = self.grandparent(node)
         node.parent.color = NodeColor.Black
+        g = self.grandparent(node)
+        if not g:
+            return
         g.color = NodeColor.Red
 
         if node == node.parent.left \
@@ -340,8 +344,8 @@ class Tree:
         else:
             self.rotate_left(g)
 
-    def delete(self, value):
-        node = self.find(value)
+    def delete(self, key):
+        node = self.find(key)
         if not node:
             return
 
@@ -350,13 +354,13 @@ class Tree:
             rm_node = node.right
             while rm_node.left:
                 rm_node = rm_node.left
-            node.value = rm_node.value
+            node.key = rm_node.key
 
         if rm_node.color == NodeColor.Red:
             if rm_node == rm_node.parent.left:
-                rm_node.parent.left = ImagineNode()
+                rm_node.parent.left = ImagineNode(rm_node.parent.index)
             else:
-                rm_node.parent.right = ImagineNode()
+                rm_node.parent.right = ImagineNode(rm_node.parent.index)
 
         elif rm_node.color == NodeColor.Black:
             child = rm_node.left or rm_node.right
@@ -370,7 +374,7 @@ class Tree:
         if node.parent:
             self._delete_case2(node)
         else:
-            self.root = ImagineNode()
+            self.root = ImagineNode(0)
             NodeStream.set_node(self.root)
 
     def _delete_case2(self, node):
@@ -435,18 +439,17 @@ class Tree:
             s.left.color = NodeColor.Black
             self.rotate_right(node.parent)
 
-    def find(self, value):
-        root_index = NodeStream.get_root_index()
-        self.root = NodeStream.get_node(root_index)
+    def find(self, key):
+        self.root = NodeStream.get_root()
         if not self.root:
             return
 
         node = self.root
         while node:
-            if value == node.value:
+            if key == node.key:
                 return node
 
-            if value < node.value:
+            if key < node.key:
                 node = node.left
             else:
                 node = node.right

@@ -41,7 +41,7 @@ def main():
 
         if args.command == "add":
             if len(args.items) % 2 != 0:
-                pass
+                return
 
             pair = list()
             for item in args.items:
@@ -49,12 +49,24 @@ def main():
                 if len(pair) == 2:
                     value = pair.pop()
                     key = pair.pop()
+                    try:
+                        key = int(key)
+                    except ValueError:
+                        pass
+                    try:
+                        value = int(value)
+                    except ValueError:
+                        pass
                     storage[key] = value
 
         elif args.command == "get":
             for key in args.keys:
+                try:
+                    key = int(key)
+                except ValueError:
+                    pass
                 value = storage[key]
-                print(value)
+                print(value, file=sys.stdout)
 
         elif args.command == "del":
             for key in args.keys:

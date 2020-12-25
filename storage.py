@@ -1,5 +1,7 @@
-import json
 import os
+import struct
+
+from rbtree import Tree
 
 
 class StorageInitError(Exception):
@@ -10,7 +12,7 @@ class StorageInitError(Exception):
 class Storage:
     def __init__(self, path):
         self._path = path
-        self._data = None
+        self._tree = None
 
     def init(self):
         head, tail = os.path.split(self._path)
@@ -27,37 +29,38 @@ class Storage:
             text = f"Storage '{tail}' already exists"
             raise StorageInitError(text)
 
-        with open(self._path, "w") as storage:
-            storage.write(json.dumps(dict()))
+        with open(self._path, "wb") as storage:
+            pass
+
+        with open(self._path, "rb+") as storage:
+            # Количество вершин
+            storage.write(struct.pack(">i", 0))
+            # Позиция корня
+            storage.write(struct.pack(">i", -1))
 
     def __len__(self):
-        return len(self._data)
+        pass
 
     def __enter__(self):
-        with open(self._path, "r") as storage:
-            try:
-                self._data = json.load(storage)
-                if not isinstance(self._data, dict):
-                    raise TypeError("Unsupported storage data format")
-            except json.JSONDecodeError:
-                raise TypeError("Unsupported storage file format")
+        self._tree = Tree(self._path)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        with open(self._path, "w") as storage:
-            storage.write(json.dumps(self._data))
+        pass
 
     def __setitem__(self, key, value):
-        self._data[key] = value
+        self._tree.insert(key, value)
 
     def __getitem__(self, key):
-        return self._data[key]
+        result = self._tree.find(key)
+        if result:
+            return result.key
 
     def __delitem__(self, key):
-        del self._data[key]
+        pass
 
     def __contains__(self, item):
-        return item in self._data
+        pass
 
     def __iter__(self):
-        return iter(self._data)
+        pass
